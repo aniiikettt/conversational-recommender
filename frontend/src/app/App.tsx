@@ -873,7 +873,7 @@ export default function App() {
         // Truncate to last 8 turns to respect the problem statement 8-turn cap
         const currentHistory = allHistory.slice(-8);
 
-        const apiBase = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+        const apiBase = import.meta.env.VITE_API_URL || window.location.origin;
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 15000);
         let response: Response;

@@ -50,8 +50,8 @@ COPY precompute_embeddings.py .
 # Precompute catalog embeddings into the image
 RUN python precompute_embeddings.py
 
-# Copy built frontend into a static directory served by nginx in docker-compose
-# (The frontend is served separately via nginx in docker-compose.yml)
+# Copy built frontend from Stage 1 into the FastAPI backend static folder
+COPY --from=frontend-build /frontend/dist ./static
 
 # Expose API port
 EXPOSE 8000

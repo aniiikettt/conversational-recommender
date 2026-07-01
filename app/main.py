@@ -10,6 +10,7 @@ from typing import List, Optional
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from fastapi.staticfiles import StaticFiles
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -116,10 +117,23 @@ async def chat_endpoint(request: Request, body: ChatRequest, auth: Optional[HTTP
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/", response_class=HTMLResponse)
-def index_page():
-    """Served at root (/) - A premium dark-mode web console for manual recruiter testing."""
-    html_content = """
+# Mount static files if they exist (allows serving the compiled React frontend directly from the backend)
+static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "static")
+if os.path.exists(os.path.join(static_dir, "index.html")):
+    assets_dir = os.path.join(static_dir, "assets")
+    if os.path.exists(assets_dir):
+        app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+    @app.get("/", response_class=HTMLResponse)
+    def index_page():
+        index_path = os.path.join(static_dir, "index.html")
+        with open(index_path, "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read(), status_code=200)
+else:
+    @app.get("/", response_class=HTMLResponse)
+    def index_page():
+        """Served at root (/) - A premium dark-mode web console for manual recruiter testing."""
+        html_content = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
