@@ -380,7 +380,7 @@ class HeuristicAgent:
                     "recommendations": recs,
                     "end_of_conversation": True
                 }
-            elif "senior ic" in latest_user or "design" in latest_user or "architecture" in latest_user:
+            elif any(w in latest_user for w in ["senior ic", "tech lead", "lead", "senior", "ic", "design", "architecture"]):
                 return {
                     "reply": "For a senior IC backend engineer with Java / Spring / SQL primary and Angular secondary, here's a first shortlist focused on what they'll actually own:",
                     "recommendations": self.get_shortlist([
@@ -411,7 +411,7 @@ class HeuristicAgent:
                     "recommendations": recs,
                     "end_of_conversation": False
                 }
-            elif "backend" in latest_user or "angular" in latest_user:
+            elif any(w in latest_user for w in ["backend", "angular", "leaning", "learning", "full-stack", "frontend"]):
                 return {
                     "reply": "Understood — Java, Spring, and SQL as primary; Angular as secondary review-only. One more question before I shape the battery: is the seniority closer to a senior IC (deep backend ownership, leads design on their service) or a tech lead (sets architecture across services, reviews other engineers' work)? That changes whether we lean on a knowledge-heavy battery or add a leadership/scenarios layer.",
                     "recommendations": [],
