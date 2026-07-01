@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.Python
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Environment variables (NEVER commit secrets)
+.env
+.env.*
+!.env.example
+
+# Precomputed embeddings (large binary, rebuild in Docker)
+app/catalog_embeddings.npy
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+!frontend/.env.development
+!frontend/.env.production
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Test artifacts
+.pytest_cache/
+htmlcov/
+.coverage
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Docker
+.dockerignore
+
+# Submission docs
+approach_document.md
+approach_document.pdf
+*.pdf

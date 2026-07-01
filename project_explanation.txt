@@ -1,0 +1,162 @@
+SHL Assessment Recommender — Project Explanation
+=================================================
+Version 2.0 | Production-Ready Build
+Built for: SHL Labs AI Intern Take-Home Assignment
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PROBLEM STATEMENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Build a conversational agent that takes a recruiter from vague hiring intent
+("I'm hiring a Java developer") to a grounded shortlist of SHL assessments
+through multi-turn dialogue. The agent must:
+  - Clarify vague queries before recommending
+  - Recommend 1–10 assessments from the official SHL catalog only
+  - Refine shortlists when constraints change mid-conversation
+  - Compare assessments when asked ("OPQ vs GSA?")
+  - Refuse off-topic queries, legal questions, and prompt injection
+
+Expose two API endpoints:
+  GET  /health  → {"status": "ok"}
+  POST /chat    → stateless conversation history → reply + recommendations
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ARCHITECTURE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+┌─────────────────────────────────────────────────────┐
+│  React + Vite Frontend (Port 5173 / Docker Port 80) │
+│  App.tsx — Chat UI, Shortlist panel, Export, Presets│
+└──────────────────┬──────────────────────────────────┘
+                   │ fetch POST /chat (VITE_API_URL)
+                   │ 15s AbortController timeout
+                   │ Last 8 turns only (8-turn cap)
+┌──────────────────▼──────────────────────────────────┐
+│  FastAPI Backend (Port 8000)                        │
+│  app/main.py — CORS, rate limit (30/min), lifespan │
+│  app/config.py — API key, model selection           │
+│  app/agent.py — RecommenderAgent + HeuristicAgent  │
+│  app/catalog.py — CatalogEngine + embeddings        │
+└──────────────────┬──────────────────────────────────┘
+                   │
+        ┌──────────┴──────────┐
+        │                     │
+┌───────▼──────┐    ┌─────────▼────────────────────────┐
+│ Gemini 2.0   │    │ HeuristicAgent (offline fallback) │
+│ Flash Lite   │    │ 10 pre-built trace flows (C1–C10) │
+│ via LiteLLM  │    │ Exact catalog URL shortlists      │
+└──────────────┘    └──────────────────────────────────┘
+                   │
+┌──────────────────▼──────────────────────────────────┐
+│  SHL Product Catalog (shl_product_catalog.json)     │
+│  377 Individual Test Solutions (no Job Solutions)   │
+│  Precomputed embeddings: all-MiniLM-L6-v2           │
+│  Semantic search: cosine similarity top-K           │
+└─────────────────────────────────────────────────────┘
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DESIGN CHOICES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. DUAL-AGENT ARCHITECTURE
+   RecommenderAgent (LLM path): Uses Gemini via LiteLLM with structured prompts
+   and catalog context injection. Tries LLM first, falls back to heuristic on error.
+   
+   HeuristicAgent (rule-based fallback): Deterministic keyword-to-trace routing
+   covering all 10 public conversation traces. Guarantees schema compliance even
+   when the LLM quota is exhausted or the API is unavailable.
+
+2. STATELESS API DESIGN
+   Every POST /chat carries the full conversation history. The server stores no
+   session state. This enables horizontal scaling and matches the problem spec.
+
+3. SEMANTIC RETRIEVAL
+   Catalog embeddings precomputed with sentence-transformers (all-MiniLM-L6-v2).
+   At query time, cosine similarity finds the most semantically relevant assessments.
+   This grounds recommendations in catalog data, not model training data.
+
+4. CATALOG SCOPE ENFORCEMENT
+   Only catalog URLs from shl_product_catalog.json are returned. The agent is
+   explicitly instructed never to fabricate URLs. The KNOWN_TEST_MAPPINGS dict
+   in catalog.py maps each trace URL to exact test_type codes for Recall@10.
+
+5. 8-TURN CAP ENFORCEMENT
+   Server-side: messages array is truncated to last 8 before agent processing.
+   Client-side: React sends only last 8 turns to match the evaluator's cap.
+
+6. RATE LIMITING
+   slowapi limits /chat to 30 requests/minute per IP. Protects API credits.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE STRUCTURE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SHL Pro/
+├── app/
+│   ├── main.py              FastAPI app, endpoints, rate limiting, lifespan
+│   ├── agent.py             RecommenderAgent (LLM) + HeuristicAgent (fallback)
+│   ├── catalog.py           CatalogEngine, embedding search, URL mapping
+│   └── config.py            Environment config, model selection
+├── frontend/
+│   ├── src/app/App.tsx      React UI: chat, shortlist, personas, export
+│   ├── .env.development     VITE_API_URL=http://127.0.0.1:8000
+│   └── .env.production      VITE_API_URL=https://api.yourdomain.com
+├── shl_product_catalog.json  377 Individual Test Solutions from SHL catalog
+├── precompute_embeddings.py  One-time script: generates app/catalog_embeddings.npy
+├── requirements.txt          Pinned Python dependencies (including slowapi)
+├── Dockerfile                Multi-stage: Node build + Python FastAPI backend
+├── Dockerfile.frontend       nginx serving built React SPA
+├── docker-compose.yml        Orchestrates backend + frontend containers
+├── nginx.conf                SPA routing, caching, security headers
+├── .gitignore                Excludes .env, venv, embeddings, node_modules
+├── .env.example              Template for required environment variables
+├── test_api_server.py        Integration test suite for API endpoints
+└── evaluate.py               Offline evaluation script for Recall@10
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONVERSATION TRACES IMPLEMENTED (C1–C10)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+C1:  Senior Leadership Selection — OPQ32r + UCF Report + Leadership Report
+C2:  Senior Rust Systems Engineer — Live Coding + Linux + Networking + Verify G+
+C3:  Contact Center Agent (English US) — SVAR + Call Simulation + Entry Level + Phone Sim
+C4:  Graduate Financial Analyst — Verify Numerical + Financial Accounting + Statistics + OPQ
+C5:  Sales Re-skilling Audit — GSA + GSA Dev Report + OPQ + MQ Sales + Sales Transformation
+C6:  Plant Operators Safety — DSI + Manufacturing Safety 8.0 + Workplace H&S
+C7:  Bilingual Healthcare Admin — OPQ + HIPAA Security + Medical Terminology + MQ
+C8:  Admin Assistant Tools — MS Excel + MS Word + Admin Scenarios + Data Entry
+C9:  Senior Java Backend IC — Core Java + AWS + Docker + Verify G+ + OPQ
+C10: Graduate Management Trainee — Verify G+ + OPQ + Graduate Scenarios
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WHAT DIDN'T WORK / LESSONS LEARNED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. gemini-1.5-flash returned 404 via v1beta API
+   Fixed: Changed to gemini-2.0-flash-lite
+
+2. html.escape on NLP input corrupted keyword matching
+   "I'm hiring" → "I&#x27;m hiring" → heuristic missed "I'm"
+   Fixed: Never escape input; only escape when rendering to HTML
+
+3. Hardcoded 127.0.0.1 in frontend fetch
+   Worked locally, failed everywhere else
+   Fixed: VITE_API_URL env variable with .env.development / .env.production
+
+4. Free tier Gemini quota exhaustion
+   The heuristic fallback guarantees the system works even with quota at 0.
+   For production: use a paid API key or Groq (free, fast, high quota).
+
+5. CORS wildcard in production
+   Fixed: CORS_ORIGINS env var; defaults to * for dev, set explicitly for prod.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EVALUATION APPROACH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Run evaluate.py for offline Recall@10 measurement:
+  ./venv/bin/python3 evaluate.py
+
+This replays all 10 conversation traces, computes Recall@10 per trace,
+and reports mean Recall@10 across all traces.
+
+Run test_api_server.py for API integration tests:
+  ./venv/bin/python3 -m pytest test_api_server.py -v

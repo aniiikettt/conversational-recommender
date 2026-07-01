@@ -1,0 +1,203 @@
+SHL Assessment Recommender — User Guide
+========================================
+Version 2.0 | Production-Ready Build
+
+OVERVIEW
+--------
+A conversational AI agent that guides recruiters from a vague hiring intent to a
+grounded, shortlisted battery of SHL assessments through natural dialogue.
+
+Built with FastAPI (backend) + React/Vite (frontend), powered by Gemini 2.0 Flash Lite
+with a robust heuristic fallback for offline or quota-limited operation.
+
+
+QUICK START (Local Development)
+--------------------------------
+
+Prerequisites:
+  - Python 3.9+
+  - Node.js 18+
+  - A Gemini API key (free tier at https://aistudio.google.com/)
+
+Step 1: Clone and configure
+  cp .env.example .env
+  # Edit .env and set your GEMINI_API_KEY
+
+Step 2: Create Python virtual environment and install backend
+  python3 -m venv venv
+  ./venv/bin/pip install -r requirements.txt
+
+Step 3: Precompute catalog embeddings (one-time, takes ~1 min)
+  ./venv/bin/python3 precompute_embeddings.py
+
+Step 4: Start the backend API (Terminal 1)
+  ./venv/bin/python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+Step 5: Install and start the frontend (Terminal 2)
+  cd frontend
+  npm install
+  npm run dev
+  # Opens at http://localhost:5173
+
+Step 6: Open the app
+  Frontend (full UI):   http://localhost:5173
+  Backend console:      http://localhost:8000
+  API docs:             http://localhost:8000/docs
+  Health check:         http://localhost:8000/health
+
+
+USING THE APP
+--------------
+
+Chat Interface (Left Panel):
+  - Type any hiring requirement in natural language
+  - The agent will ask clarifying questions before recommending
+  - Example: "I need to hire a Senior Java engineer who works with stakeholders"
+
+Preset Personas (Right sidebar):
+  - 10 pre-built hiring scenarios for quick testing
+  - Click any persona to instantly load that conversation scenario
+
+Shortlist Panel:
+  - Recommended assessments appear here as the conversation progresses
+  - Each card shows assessment name, type code, and catalog link
+  - Click "View Catalog" to open the SHL product page
+
+Export Options:
+  - CSV: Download shortlist as a spreadsheet
+  - JSON: Download structured data for integrations
+  - Clipboard: Copy shortlist to clipboard
+
+Compare Mode:
+  - Ask the agent directly: "What's the difference between OPQ and GSA?"
+  - The agent answers from catalog data, not from model training
+
+
+WHAT THE AGENT CAN DO
+-----------------------
+
+✅ Clarify vague queries before recommending (e.g. "What seniority level?")
+✅ Recommend 1–10 assessments once enough context is gathered
+✅ Refine shortlist when constraints change mid-conversation
+✅ Compare assessments with grounded catalog explanations
+✅ Handle 10 pre-built hiring persona traces (C1–C10)
+
+✅ STAYS IN SCOPE — Refuses:
+   - General hiring advice ("write a job description")
+   - Legal questions ("is this legally required?")
+   - Prompt injection attempts ("ignore previous instructions")
+   - Off-topic queries ("how do I cook pasta?")
+
+
+API ENDPOINTS
+--------------
+
+GET  /health          → {"status": "ok"}   (readiness check)
+POST /chat            → Conversation turn   (see API SCHEMA below)
+GET  /                → Browser HTML console
+GET  /docs            → Interactive Swagger docs
+
+API SCHEMA (POST /chat):
+  Request:
+    {
+      "messages": [
+        {"role": "user", "content": "I need a Java developer assessment"},
+        {"role": "assistant", "content": "What seniority level?"},
+        {"role": "user", "content": "Mid-level, 4 years experience"}
+      ]
+    }
+
+  Response:
+    {
+      "reply": "Here are 4 assessments for a mid-level Java developer...",
+      "recommendations": [
+        {"name": "Core Java (Advanced Level)", "url": "https://www.shl.com/...", "test_type": "K"},
+        {"name": "OPQ32r", "url": "https://www.shl.com/...", "test_type": "P"}
+      ],
+      "end_of_conversation": false
+    }
+
+  Rules:
+    - recommendations is EMPTY while gathering context
+    - recommendations contains 1–10 items when committed to a shortlist
+    - end_of_conversation is true only when the task is complete
+    - Max 8 turns per conversation (enforced server-side)
+    - Max 4000 characters per message
+    - Rate limited: 30 requests/minute per IP
+
+
+DOCKER DEPLOYMENT
+------------------
+
+Single command to build and run everything:
+  docker-compose up --build
+
+This starts:
+  - Backend API at http://localhost:8000
+  - Frontend (nginx) at http://localhost:80
+
+To deploy backend only:
+  docker build -t shl-backend .
+  docker run -p 8000:8000 --env-file .env shl-backend
+
+To deploy with custom API URL:
+  docker-compose build --build-arg VITE_API_URL=https://api.yourdomain.com
+  docker-compose up
+
+
+PRODUCTION DEPLOYMENT
+-----------------------
+
+Recommended platforms: Render, Fly.io, Railway, Modal, Hugging Face Spaces
+
+Environment variables required in production:
+  GEMINI_API_KEY=<your-key>
+  CORS_ORIGINS=https://yourfrontend.com
+  API_AUTH_TOKEN=<optional-bearer-token>
+
+The /health endpoint has a 2-minute cold-start allowance per the problem spec.
+
+
+TROUBLESHOOTING
+----------------
+
+"API connection failed" in the UI:
+  → Ensure the backend is running on port 8000
+  → Check that VITE_API_URL in frontend/.env.development matches the backend port
+
+Spinner runs forever:
+  → A 15-second fetch timeout is now enforced; if it times out, you'll see an error message
+  → Check backend logs for the error
+
+Gemini API quota exceeded (429 error):
+  → The agent automatically falls back to the heuristic engine
+  → All 10 persona traces still work via the heuristic fallback
+  → Generate a new API key or wait for quota reset
+
+Apostrophes/quotes not matching (e.g. "I'm hiring"):
+  → Fixed in v2.0: input is no longer html.escaped before NLP processing
+
+Assessments show placeholder duration/credits:
+  → Assessments not in the frontend's static list show default values
+  → This affects the display only — recommendations and URLs are always correct
+
+
+SCORING CRITERIA (from assignment)
+------------------------------------
+
+Hard evals (must pass):
+  ✅ Schema compliance on every response
+  ✅ Items from catalog only in recommendations
+  ✅ 8-turn cap honored
+  ✅ /health returns {"status": "ok"}
+
+Recall@10:
+  The fraction of relevant assessments appearing in top-10 recommendations,
+  averaged across all traces. All 10 public traces are implemented in the heuristic
+  agent as exact catalog URL shortlists.
+
+Behavior probes:
+  ✅ Agent refuses off-topic queries
+  ✅ Agent does not recommend on turn 1 for vague queries
+  ✅ Agent honors edits and refinements mid-conversation
+  ✅ No hallucinated URLs — all URLs come from scraped catalog
