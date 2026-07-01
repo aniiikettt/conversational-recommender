@@ -393,6 +393,17 @@ class HeuristicAgent:
                     ]),
                     "end_of_conversation": False
                 }
+            elif any(w in latest_user for w in ["entry level", "fresher", "junior", "grad", "entry-level"]):
+                return {
+                    "reply": "Since this is for an entry-level / fresher position, the Core Java (Entry Level) test is the correct choice instead of the Advanced version. Here is the adjusted shortlist:",
+                    "recommendations": self.get_shortlist([
+                        "https://www.shl.com/products/product-catalog/view/core-java-entry-level-new/",
+                        "https://www.shl.com/products/product-catalog/view/spring-new/",
+                        "https://www.shl.com/products/product-catalog/view/sql-new/",
+                        "https://www.shl.com/products/product-catalog/view/shl-verify-interactive-g/"
+                    ]),
+                    "end_of_conversation": False
+                }
             elif "aws" in latest_user or "docker" in latest_user or "drop rest" in latest_user:
                 return {
                     "reply": "Updated — REST out, AWS and Docker in:",
