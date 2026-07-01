@@ -172,7 +172,6 @@ class CatalogEngine:
         if os.path.exists(emb_path):
             print(f"Loading precomputed embeddings from {emb_path}...")
             self.embeddings = np.load(emb_path)
-            self.model = SentenceTransformer('all-MiniLM-L6-v2')
         else:
             self.init_embeddings()
 
@@ -192,7 +191,8 @@ class CatalogEngine:
         """Precomputes dense vector embeddings for all catalog items."""
         print("Initializing SentenceTransformer...")
         # Load local lightweight model
-        self.model = SentenceTransformer('all-MiniLM-L6-v2')
+        if self.model is None:
+            self.model = SentenceTransformer('all-MiniLM-L6-v2')
         
         # We encode both the name and description of each test
         texts = []
@@ -249,6 +249,9 @@ class CatalogEngine:
             return []
             
         # 1. Semantic Search
+        if self.model is None:
+            print("Lazy initializing SentenceTransformer inside search...")
+            self.model = SentenceTransformer('all-MiniLM-L6-v2')
         query_emb = self.model.encode([query])[0]
         similarities = np.dot(self.embeddings, query_emb) / (
             np.linalg.norm(self.embeddings, axis=1) * np.linalg.norm(query_emb) + 1e-9
